@@ -1,0 +1,497 @@
+--
+-- PostgreSQL database dump
+--
+
+-- Dumped from database version 14.5
+-- Dumped by pg_dump version 14.5
+
+-- Started on 2024-11-26 22:20:42
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
+-- TOC entry 212 (class 1259 OID 16457)
+-- Name: customers; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.customers (
+    customerid integer NOT NULL,
+    customername character varying NOT NULL,
+    customeraddress character varying NOT NULL
+);
+
+
+ALTER TABLE public.customers OWNER TO postgres;
+
+--
+-- TOC entry 211 (class 1259 OID 16456)
+-- Name: customers_customerid_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.customers_customerid_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.customers_customerid_seq OWNER TO postgres;
+
+--
+-- TOC entry 3353 (class 0 OID 0)
+-- Dependencies: 211
+-- Name: customers_customerid_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.customers_customerid_seq OWNED BY public.customers.customerid;
+
+
+--
+-- TOC entry 210 (class 1259 OID 16448)
+-- Name: items; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.items (
+    itemid integer NOT NULL,
+    itemname character varying NOT NULL,
+    price money NOT NULL,
+    stock integer NOT NULL
+);
+
+
+ALTER TABLE public.items OWNER TO postgres;
+
+--
+-- TOC entry 214 (class 1259 OID 16466)
+-- Name: orders; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.orders (
+    entryid integer NOT NULL,
+    ordernumber integer NOT NULL,
+    customerid integer NOT NULL,
+    productid integer NOT NULL,
+    quantity integer NOT NULL
+);
+
+
+ALTER TABLE public.orders OWNER TO postgres;
+
+--
+-- TOC entry 217 (class 1259 OID 16782)
+-- Name: ordernotarray; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.ordernotarray AS
+ SELECT orders.ordernumber,
+    customers.customername,
+    customers.customeraddress,
+    items.itemname,
+    orders.quantity,
+    (orders.quantity * items.price) AS totalitemcost
+   FROM ((public.orders
+     JOIN public.customers ON ((customers.customerid = orders.customerid)))
+     JOIN public.items ON ((items.itemid = orders.productid)));
+
+
+ALTER TABLE public.ordernotarray OWNER TO postgres;
+
+--
+-- TOC entry 218 (class 1259 OID 16786)
+-- Name: orderagg; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.orderagg AS
+ SELECT array_agg(ordernotarray.itemname) AS items,
+    array_agg(ordernotarray.quantity) AS quantities,
+    sum(ordernotarray.totalitemcost) AS totalcost
+   FROM public.ordernotarray
+  GROUP BY ordernotarray.ordernumber
+  ORDER BY ordernotarray.ordernumber;
+
+
+ALTER TABLE public.orderagg OWNER TO postgres;
+
+--
+-- TOC entry 213 (class 1259 OID 16465)
+-- Name: orders_orderid_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.orders_orderid_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.orders_orderid_seq OWNER TO postgres;
+
+--
+-- TOC entry 3354 (class 0 OID 0)
+-- Dependencies: 213
+-- Name: orders_orderid_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.orders_orderid_seq OWNED BY public.orders.entryid;
+
+
+--
+-- TOC entry 209 (class 1259 OID 16447)
+-- Name: products_idnumber_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.products_idnumber_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.products_idnumber_seq OWNER TO postgres;
+
+--
+-- TOC entry 3355 (class 0 OID 0)
+-- Dependencies: 209
+-- Name: products_idnumber_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.products_idnumber_seq OWNED BY public.items.itemid;
+
+
+--
+-- TOC entry 215 (class 1259 OID 16601)
+-- Name: reportwithids; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.reportwithids AS
+ SELECT round(avg(orders.productid)) AS productid,
+    sum((orders.quantity * items.price)) AS totalrevenue,
+    sum(orders.quantity) AS totalquantity
+   FROM (public.orders
+     JOIN public.items ON ((items.itemid = orders.productid)))
+  GROUP BY orders.productid;
+
+
+ALTER TABLE public.reportwithids OWNER TO postgres;
+
+--
+-- TOC entry 216 (class 1259 OID 16664)
+-- Name: salesreport; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.salesreport AS
+ SELECT items.itemname,
+    reportwithids.totalquantity,
+    reportwithids.totalrevenue
+   FROM (public.items
+     JOIN public.reportwithids ON (((items.itemid)::numeric = reportwithids.productid)))
+  ORDER BY reportwithids.totalrevenue DESC, reportwithids.totalquantity DESC, items.itemname DESC;
+
+
+ALTER TABLE public.salesreport OWNER TO postgres;
+
+--
+-- TOC entry 3191 (class 2604 OID 16460)
+-- Name: customers customerid; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.customers ALTER COLUMN customerid SET DEFAULT nextval('public.customers_customerid_seq'::regclass);
+
+
+--
+-- TOC entry 3190 (class 2604 OID 16451)
+-- Name: items itemid; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.items ALTER COLUMN itemid SET DEFAULT nextval('public.products_idnumber_seq'::regclass);
+
+
+--
+-- TOC entry 3192 (class 2604 OID 16469)
+-- Name: orders entryid; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.orders ALTER COLUMN entryid SET DEFAULT nextval('public.orders_orderid_seq'::regclass);
+
+
+--
+-- TOC entry 3345 (class 0 OID 16457)
+-- Dependencies: 212
+-- Data for Name: customers; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.customers (customerid, customername, customeraddress) FROM stdin;
+0	Cap Guy	17 Capsville Rd
+1	SpongeBob	124 Conch Street
+2	Patrick	120 Conch Street
+4	Filler Customer	Somewhere, probably
+5	Milan Iliev (biggest cap fan 2022)	742 Evergreen Terrace
+6	Joseph Mama	803 Whalefall Court
+3	The Adams Hall Gremlin	Adams Hall Vending Machine (new)
+\.
+
+
+--
+-- TOC entry 3343 (class 0 OID 16448)
+-- Dependencies: 210
+-- Data for Name: items; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.items (itemid, itemname, price, stock) FROM stdin;
+3	Cap (Floating)	$999.99	4335
+6	Soda Cap	$0.05	8991
+9	Plain Ol Cap	$9.99	5980
+7	Krusty Krab Uniform Cap	$149.99	5072
+4	Ice Cap	$49.99	11951
+1	Fishing Cap	$25.00	7703
+2	No Cap	$910.21	8902
+0	Fishing Cap (Long)	$30.00	7742
+8	Silly Cap	$15.99	13699
+5	Rare One of a Kind Antique Cap	$5.00	11117
+\.
+
+
+--
+-- TOC entry 3347 (class 0 OID 16466)
+-- Dependencies: 214
+-- Data for Name: orders; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.orders (entryid, ordernumber, customerid, productid, quantity) FROM stdin;
+1	1	4	4	172
+2	2	4	5	631
+3	2	4	3	853
+4	3	5	7	117
+5	4	1	1	162
+6	4	1	3	640
+7	4	1	4	861
+8	5	0	7	778
+9	5	0	0	376
+10	5	0	9	972
+11	6	3	3	72
+12	7	6	0	41
+13	8	3	9	132
+14	8	3	7	246
+15	8	3	0	851
+16	9	6	9	668
+17	10	3	1	84
+18	10	3	8	873
+19	10	3	0	205
+20	11	6	5	194
+21	11	6	8	582
+22	11	6	0	425
+23	12	2	2	91
+24	12	2	2	5
+25	13	3	1	15
+26	13	3	9	989
+27	14	4	5	406
+28	15	0	8	41
+29	15	0	4	18
+30	15	0	2	12
+31	16	6	2	42
+32	17	1	7	630
+33	17	1	4	605
+34	17	1	1	8
+35	18	6	1	1
+36	18	6	2	11
+37	19	2	4	995
+38	19	2	6	184
+39	20	3	5	1
+40	20	3	2	2
+41	21	1	4	186
+42	21	1	4	311
+43	21	1	5	2
+44	22	1	4	768
+45	22	1	4	48
+46	22	1	7	279
+47	23	6	7	210
+48	24	5	9	81
+49	24	5	7	818
+50	24	5	0	336
+51	25	0	4	85
+52	25	0	4	128
+53	25	0	7	512
+54	26	1	9	741
+55	27	2	7	1
+56	27	2	7	16
+57	28	2	8	101
+58	28	2	6	146
+59	28	2	6	524
+60	29	5	4	42
+61	29	5	6	643
+62	29	5	9	367
+63	30	5	7	1
+64	30	5	8	45
+65	31	6	0	322
+66	31	6	6	16
+67	31	6	9	41
+68	32	0	0	564
+69	32	0	8	31
+70	32	0	0	4
+71	33	4	9	5
+72	33	4	4	1
+73	33	4	4	1
+74	34	5	3	554
+75	35	2	4	2
+76	35	2	4	2
+77	36	5	9	624
+78	37	1	9	117
+79	37	1	0	841
+80	38	2	5	724
+81	39	2	9	815
+82	39	2	0	90
+83	40	4	8	232
+84	40	4	5	952
+85	41	1	2	55
+86	41	1	7	937
+87	41	1	5	815
+88	42	5	6	421
+89	43	3	4	86
+90	43	3	6	385
+91	44	2	9	400
+92	44	2	9	227
+93	44	2	7	879
+94	45	0	8	137
+95	45	0	9	881
+96	46	3	3	413
+97	47	1	7	319
+98	47	1	1	783
+99	48	1	0	225
+100	48	1	9	684
+101	48	1	3	706
+102	49	3	3	951
+103	50	5	3	199
+104	51	0	3	85
+105	51	0	5	855
+106	51	0	9	81
+107	52	1	5	277
+108	52	1	5	784
+109	53	3	0	960
+110	53	3	0	16
+111	54	1	3	846
+112	54	1	0	196
+113	54	1	3	449
+114	55	4	4	274
+115	55	4	6	857
+116	56	5	9	679
+117	57	2	0	160
+118	57	2	5	746
+119	58	4	0	640
+120	59	1	2	644
+121	60	3	3	913
+122	60	3	6	554
+123	61	6	7	267
+124	61	6	0	511
+125	62	0	9	836
+126	62	0	7	979
+127	63	1	7	26
+128	63	1	7	768
+129	64	3	9	62
+130	65	6	0	199
+131	65	6	4	569
+132	65	6	6	114
+133	66	2	0	978
+134	66	2	2	70
+135	67	4	8	948
+136	67	4	5	668
+137	67	4	7	859
+138	68	1	3	206
+139	68	1	3	934
+140	68	1	1	348
+141	69	6	0	751
+142	69	6	9	659
+143	70	6	4	646
+144	70	6	3	710
+145	70	6	3	123
+146	71	0	3	508
+147	71	0	4	942
+148	72	5	6	686
+149	72	5	4	603
+150	72	5	7	345
+151	73	1	7	287
+152	74	0	7	475
+153	74	0	5	163
+154	75	0	2	513
+155	75	0	1	586
+\.
+
+
+--
+-- TOC entry 3356 (class 0 OID 0)
+-- Dependencies: 211
+-- Name: customers_customerid_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.customers_customerid_seq', 6, true);
+
+
+--
+-- TOC entry 3357 (class 0 OID 0)
+-- Dependencies: 213
+-- Name: orders_orderid_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.orders_orderid_seq', 155, true);
+
+
+--
+-- TOC entry 3358 (class 0 OID 0)
+-- Dependencies: 209
+-- Name: products_idnumber_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.products_idnumber_seq', 10, true);
+
+
+--
+-- TOC entry 3196 (class 2606 OID 16464)
+-- Name: customers customers_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.customers
+    ADD CONSTRAINT customers_pkey PRIMARY KEY (customerid);
+
+
+--
+-- TOC entry 3198 (class 2606 OID 16471)
+-- Name: orders orders_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.orders
+    ADD CONSTRAINT orders_pkey PRIMARY KEY (entryid);
+
+
+--
+-- TOC entry 3194 (class 2606 OID 16455)
+-- Name: items products_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.items
+    ADD CONSTRAINT products_pkey PRIMARY KEY (itemid);
+
+
+-- Completed on 2024-11-26 22:20:42
+
+--
+-- PostgreSQL database dump complete
+--
+
